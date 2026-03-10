@@ -1,0 +1,309 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { Customer, Payment } from "../types/Customer";
+import { getCustomers } from "../services/customerService";
+import { getPayments, addPayment, updatePayment } from "../services/paymentService";
+import "./Payments.css"; // Pastikan import CSS ini ada
+
+const Payments = () => {
+  const navigate = useNavigate();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedStatus, setSelectedStatus] = useState<"lunas" | "belum">("belum");
+  const [metodePembayaran, setMetodePembayaran] = useState<"Tunai" | "Transfer" | "QRIS">("Tunai");
+  const [bank, setBank] = useState<string>("");
+  const [atasNamaRekening, setAtasNamaRekening] = useState<string>("");
+  const [totalBayar, setTotalBayar] = useState<number>(0);
+  const [tanggalBayar, setTanggalBayar] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const handler = () => loadData();
+    window.addEventListener('paymentsUpdated', handler);
+    return () => window.removeEventListener('paymentsUpdated', handler);
+  }, []);
+
+  // Sync form fields with existing payment when selection changes
+  useEffect(() => {
+    const customer = customers.find((c) => c.id === selectedCustomer);
+    const existingPayment = payments.find(
+      (p) => p.customer_id === selectedCustomer && p.bulan === selectedMonth && p.tahun === selectedYear
+    );
+
+    if (existingPayment) {
+      setTotalBayar(existingPayment.total_bayar ?? customer?.harga ?? 0);
+      setAtasNamaRekening(
+        existingPayment.atas_nama_rekening && existingPayment.atas_nama_rekening !== "-"
+          ? existingPayment.atas_nama_rekening
+          : ""
+      );
+      setMetodePembayaran(existingPayment.metode_pembayaran ?? "Tunai");
+      setBank(existingPayment.bank ?? "");
+      setTanggalBayar(
+        existingPayment.tanggal_bayar
+          ? new Date(existingPayment.tanggal_bayar).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0]
+      );
+    } else {
+      setTotalBayar(customer?.harga ?? 0);
+      setAtasNamaRekening("");
+      setMetodePembayaran("Tunai");
+      setBank("");
+      setTanggalBayar(new Date().toISOString().split("T")[0]);
+    }
+  }, [selectedCustomer, selectedMonth, selectedYear, customers, payments]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [c, p] = await Promise.all([getCustomers(), getPayments()]);
+      setCustomers(c);
+      setPayments(p);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!selectedCustomer) {
+      alert("Pilih pelanggan terlebih dahulu");
+      return;
+    }
+
+    const existingPayment = payments.find(
+      (p) => p.customer_id === selectedCustomer && p.bulan === selectedMonth && p.tahun === selectedYear
+    );
+
+    try {
+      // Validasi input agar tidak tersimpan data default
+      if (metodePembayaran === "Transfer") {
+        if (!bank) {
+          alert("Pilih bank transfer terlebih dahulu.");
+          return;
+        }
+        if (!atasNamaRekening) {
+          alert("Masukkan nama pemilik rekening.");
+          return;
+        }
+      }
+
+      const shouldSetTanggalBayar =
+        selectedStatus === "lunas" &&
+        existingPayment?.status_bayar !== "lunas";
+
+      const paymentPayload = {
+        customer_id: selectedCustomer,
+        bulan: selectedMonth,
+        tahun: selectedYear,
+        status_bayar: selectedStatus,
+        tanggal_bayar: shouldSetTanggalBayar
+          ? new Date()
+          : selectedStatus === "lunas"
+          ? existingPayment?.tanggal_bayar || new Date()
+          : null,
+        metode_pembayaran: metodePembayaran,
+        bank: metodePembayaran === "Transfer" ? bank : "",
+        atas_nama_rekening: atasNamaRekening || "-",
+        total_bayar: totalBayar,
+      };
+
+      if (existingPayment) {
+        await updatePayment(existingPayment.id!, paymentPayload);
+      } else {
+        await addPayment(paymentPayload);
+      }
+      alert("Status pembayaran berhasil diperbarui");
+      loadData();
+    } catch (error) {
+      console.error("Error updating payment:", error);
+      alert("Gagal memperbarui status pembayaran");
+    }
+  };
+
+  return (
+    <div className="payments-container">
+      <div className="payments-header">
+        <h1>Update Pembayaran</h1>
+        <button onClick={() => navigate("/dashboard")} className="btn btn-primary">
+          Kembali ke Dashboard
+        </button>
+      </div>
+
+      <div className="card">
+        <h2>Update Status Pembayaran</h2>
+        <div className="form-grid">
+          <div className="form-group">
+            <label>Pilih Pelanggan:</label>
+            <select
+              value={selectedCustomer}
+              onChange={(e) => {
+                const customerId = e.target.value;
+                setSelectedCustomer(customerId);
+                const found = customers.find((c) => c.id === customerId);
+                if (found) {
+                  setTotalBayar(found.harga);
+                }
+              }}
+            >
+              <option value="">-- Pilih Pelanggan --</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.nama} - {customer.wilayah}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="form-group">
+            <label>Bulan:</label>
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {new Date(0, i).toLocaleString("id-ID", { month: "long" })}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Tahun:</label>
+            <input
+              type="number"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Status:</label>
+            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value as "lunas" | "belum")}>
+              <option value="belum">Belum</option>
+              <option value="lunas">Lunas</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Metode Pembayaran:</label>
+            <select value={metodePembayaran} onChange={(e) => { setMetodePembayaran(e.target.value as "Tunai" | "Transfer" | "QRIS"); if (e.target.value !== "Transfer") setBank(""); }}>
+              <option value="Tunai">Tunai</option>
+              <option value="Transfer">Transfer</option>
+              <option value="QRIS">QRIS</option>
+            </select>
+          </div>
+
+          {metodePembayaran === "Transfer" && (
+            <div className="form-group">
+              <label>Bank:</label>
+              <select value={bank} onChange={(e) => setBank(e.target.value)}>
+                <option value="">-- Pilih Bank --</option>
+                <option value="BCA">BCA</option>
+                <option value="BRI">BRI</option>
+                <option value="BNI">BNI</option>
+                <option value="Mandiri">Mandiri</option>
+              </select>
+            </div>
+          )}
+
+          <div className="form-group">
+            <label>Total Bayar:</label>
+            <input
+              type="number"
+              value={totalBayar}
+              onChange={(e) => setTotalBayar(Number(e.target.value))}
+              placeholder="Total pembayaran"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Atas Nama Rekening:</label>
+            <input
+              type="text"
+              value={atasNamaRekening}
+              onChange={(e) => setAtasNamaRekening(e.target.value)}
+              placeholder="Nama pemilik rekening"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Tanggal Bayar:</label>
+            <input
+              type="date"
+              value={tanggalBayar}
+              onChange={(e) => setTanggalBayar(e.target.value)}
+            />
+          </div>
+        </div>
+        
+        {/* Tambahkan margin top sedikit agar tombol tidak terlalu nempel dengan grid form */}
+        <div style={{ marginTop: "20px" }}>
+          <button onClick={handleUpdatePayment} className="btn btn-success">
+            Update Pembayaran
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Status Pembayaran Pelanggan</h2>
+        {loading ? (
+          <p>Loading...</p>
+        ) : (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>NO</th>
+                  <th>Nama</th>
+                  <th>Wilayah</th>
+                  <th>Bulan</th>
+                  <th>Tahun</th>
+                  <th>Status</th>
+                  <th>Metode</th>
+                  <th>Bank</th>
+                  <th>Atas Nama</th>
+                  <th>Total Bayar</th>
+                  <th>Tanggal Bayar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((payment, index) => {
+                  const customer = customers.find((c) => c.id === payment.customer_id);
+                  return (
+                    <tr key={payment.id}>
+                      <td>{index + 1}</td>
+                      <td>{customer?.nama || "-"}</td>
+                      <td>{customer?.wilayah || "-"}</td>
+                      <td>{payment.bulan}</td>
+                      <td>{payment.tahun}</td>
+                      <td>
+                        <span className={`status-badge ${payment.status_bayar === "lunas" ? "status-lunas" : "status-belum"}`}>
+                          {payment.status_bayar === "lunas" ? "Lunas" : "Belum"}
+                        </span>
+                      </td>
+                      <td>{payment.metode_pembayaran || "-"}</td>
+                      <td>{payment.bank || "-"}</td>
+                      <td>{payment.atas_nama_rekening || "-"}</td>
+                      <td>{payment.total_bayar ?? customer?.harga ?? "-"}</td>
+                      <td>{payment.tanggal_bayar ? new Date(payment.tanggal_bayar).toLocaleDateString("id-ID") : "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Payments;

@@ -1,0 +1,27 @@
+/* src/index.css */
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #f8fafc; /* Abu-abu sangat muda agar mata tidak lelah */
+  color: #1e293b;
+}
+
+body {
+  margin: 0;
+  display: block; /* Menghapus place-items: center yang bikin konten ke tengah */
+  min-height: 100vh;
+}
+
+/* Mempercantik Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
