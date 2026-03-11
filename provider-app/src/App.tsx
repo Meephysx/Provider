@@ -8,7 +8,7 @@ import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import { getCurrentUser } from "./services/authService";
 import Navbar from "./components/Navbar";
-
+import React from "react";
 // --- 1. KOMPONEN PRIVATE ROUTE ---
 // Hanya untuk cek akses, jika belum login dilempar ke /login
 const PrivateRoute = ({ children }: { children: ReactNode }) => {

@@ -74,7 +74,51 @@ const Reports = () => {
     return data;
   };
 
-  const inputStyle: React.CSSProperties = { width: "100%", padding: "8px", marginTop: "5px", borderRadius: 4, border: "1px solid #cbd5e1" };
+  // Styles for a cleaner filter UI
+  const formControlHeight = '38px';
+  const filterContainerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: "16px",
+    flexWrap: "wrap",
+    marginBottom: "20px"
+  };
+  const filterGroupStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    flex: "1 1 180px"
+  };
+  const labelStyle: React.CSSProperties = {
+    fontWeight: 500,
+    fontSize: '14px',
+    color: '#334155',
+    marginBottom: '4px'
+  };
+  const inputStyle: React.CSSProperties = { 
+    width: "100%", 
+    padding: "0 12px",
+    height: formControlHeight,
+    borderRadius: 6,
+    border: "1px solid #cbd5e1",
+    boxSizing: 'border-box',
+    backgroundColor: '#fff',
+    fontSize: '14px',
+  };
+  const buttonStyle: React.CSSProperties = {
+      padding: "0 20px",
+      height: formControlHeight,
+      backgroundColor: "#1e3a8a", 
+      color: "white", 
+      border: "none", 
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: "14px",
+      fontWeight: 600,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      whiteSpace: 'nowrap'
+  };
 
   const exportToExcel = () => {
     const dataToExport = filteredData();
@@ -83,39 +127,45 @@ const Reports = () => {
       return;
     }
 
-    // ---------------------------------------------
-    // 1. Header kolom dan urutan harus sesuai
-    // ---------------------------------------------
+    // 1. Judul Laporan Keuangan
+    const reportTitle = "LAPORAN KEUANGAN PEMBAYARAN PELANGGAN WIFI";
+    const exportDate = `Tanggal Export: ${new Date().toLocaleDateString("id-ID", {
+      day: '2-digit', month: 'long', year: 'numeric'
+    })}`;
+
+    // 2. Header Tabel
     const headers = [
       "No",
-      "Tanggal",
+      "Tanggal Pembayaran",
       "Nama Pelanggan",
-      "Atas Nama",
+      "Metode Pembayaran",
       "Bank",
-      "Metode",
+      "Atas Nama",
       "Total Bayar",
       "Periode",
     ];
 
-    // ---------------------------------------------
-    // 2. Mapping data (preisi dengan tipe yang benar)
-    // ---------------------------------------------
+    // 3. Hitung Total Pendapatan dari data yang terfilter
+    const totalPendapatan = dataToExport.reduce((sum, item) => {
+        if (item.payment && item.payment.status_bayar === 'lunas') {
+            return sum + Number(item.payment.total_bayar);
+        }
+        return sum;
+    }, 0);
+    const formattedTotalPendapatan = `Rp ${totalPendapatan.toLocaleString("id-ID")}`;
+
+    // 4. Mapping data row
     const dataRows = dataToExport.map((item, index) => {
       const { customer, payment } = item;
-
-      const tanggal = payment?.tanggal_bayar
-        ? new Date(payment.tanggal_bayar)
-        : null;
-
+      const tanggal = payment?.tanggal_bayar ? new Date(payment.tanggal_bayar) : null;
       const formattedTanggal = tanggal
         ? tanggal.toLocaleDateString("id-ID", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
+            day: "2-digit", month: "2-digit", year: "numeric",
           })
         : "-";
-
-      const totalBayar = Number(payment?.total_bayar ?? customer.harga ?? 0);
+      
+      const totalBayar = Number(payment?.total_bayar ?? 0);
+      const formattedTotalBayar = totalBayar > 0 ? `Rp ${totalBayar.toLocaleString("id-ID")}` : "-";
 
       const periode = payment?.periode
         ? String(payment.periode)
@@ -127,49 +177,92 @@ const Reports = () => {
         index + 1,
         formattedTanggal,
         customer.nama,
-        payment?.atas_nama_rekening ?? "-",
-        payment?.bank ?? "-",
         payment?.metode_pembayaran ?? "-",
-        totalBayar,
+        payment?.bank ?? "-",
+        payment?.atas_nama_rekening ?? "-",
+        formattedTotalBayar,
         periode,
       ];
     });
 
-    // ---------------------------------------------
-    // 3. Buat worksheet + styling header sederhana
-    // ---------------------------------------------
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+    // --- PROSES PEMBUATAN WORKSHEET ---
 
-    // Styling header (bold)
+    const ws = XLSX.utils.aoa_to_sheet([[]]);
+
+    // Tambah Judul & Tanggal
+    XLSX.utils.sheet_add_aoa(ws, [[reportTitle]], { origin: "A1" });
+    XLSX.utils.sheet_add_aoa(ws, [[exportDate]], { origin: "A2" });
+
+    // Tambah Header Tabel
+    const headerRowIndex = 3; // Baris ke-4 di Excel
+    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: `A${headerRowIndex + 1}` });
+
+    // Tambah Data Tabel
+    const dataRowStartIndex = headerRowIndex + 2; // Mulai dari baris ke-5
+    XLSX.utils.sheet_add_aoa(ws, dataRows, { origin: `A${dataRowStartIndex}` });
+
+    // Tambah Baris Ringkasan Keuangan (Total Pendapatan)
+    const summaryRowIndex = dataRowStartIndex + dataRows.length + 1; // +1 untuk baris kosong
+    const summaryRow = [
+        "", // No
+        "", // Tanggal
+        "", // Nama
+        "", // Atas Nama
+        "", // Bank
+        "TOTAL PENDAPATAN",   // Metode
+        formattedTotalPendapatan, // Total Bayar
+        "", // Periode
+    ];
+    XLSX.utils.sheet_add_aoa(ws, [summaryRow], { origin: `A${summaryRowIndex}` });
+
+
+    // --- FORMATTING & STYLING ---
+
+    // Merge & Style Judul
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+    ];
+    if(ws['A1']) ws['A1'].s = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center" } };
+    if(ws['A2']) ws['A2'].s = { alignment: { horizontal: "center" } };
+
+    // Style Header
     headers.forEach((_, colIndex) => {
-      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: colIndex });
-      if (!ws[cellAddress]) return;
-      ws[cellAddress].s = {
-        font: { bold: true },
-        alignment: { horizontal: "center", vertical: "center" },
-        fill: { fgColor: { rgb: "FFEEEEEE" } },
-      };
+      const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: colIndex });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true },
+          alignment: { horizontal: "center", vertical: "center" },
+          fill: { fgColor: { rgb: "FFD3D3D3" } },
+        };
+      }
     });
 
-    // Lebar kolom agar rapi
+    // Style Baris Total Pendapatan
+    const summaryLabelCell = XLSX.utils.encode_cell({ r: summaryRowIndex - 1, c: 5 });
+    const summaryValueCell = XLSX.utils.encode_cell({ r: summaryRowIndex - 1, c: 6 });
+    
+    if(ws[summaryLabelCell]) ws[summaryLabelCell].s = { font: { bold: true }, alignment: { horizontal: "right" } };
+    if(ws[summaryValueCell]) ws[summaryValueCell].s = { font: { bold: true }, numFmt: `#,##0` };
+
+
+    // Atur Lebar Kolom
     ws["!cols"] = [
-      { wch: 6 }, // No
-      { wch: 14 }, // Tanggal
-      { wch: 25 }, // Nama Pelanggan
-      { wch: 25 }, // Atas Nama
-      { wch: 18 }, // Bank
-      { wch: 18 }, // Metode
-      { wch: 15 }, // Total Bayar
-      { wch: 14 }, // Periode
+      { wch: 6 },    // No
+      { wch: 18 },   // Tanggal Pembayaran
+      { wch: 28 },   // Nama Pelanggan
+      { wch: 25 },   // Atas Nama
+      { wch: 18 },   // Bank
+      { wch: 20 },   // Metode Pembayaran
+      { wch: 18 },   // Total Bayar
+      { wch: 14 },   // Periode
     ];
 
+    // Buat dan Download File Excel
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Bulanan");
-
-    // ---------------------------------------------
-    // 4. Download file
-    // ---------------------------------------------
-    const fileName = `Laporan_Bulanan_WiFi_${new Date().toISOString().split("T")[0]}.xlsx`;
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Keuangan");
+    
+    const fileName = `Laporan_Keuangan_WiFi_${new Date().toISOString().split("T")[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
@@ -186,9 +279,9 @@ const Reports = () => {
 
       <div style={{ backgroundColor: "white", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", marginBottom: "20px" }}>
         <h2>Filter Laporan</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px" }}>
-          <div>
-            <label>Nama Pelanggan:</label>
+        <div style={filterContainerStyle}>
+          <div style={filterGroupStyle}>
+            <label style={labelStyle}>Nama Pelanggan:</label>
             <input
               type="text"
               value={filterNama}
@@ -197,8 +290,8 @@ const Reports = () => {
               style={inputStyle}
             />
           </div>
-          <div>
-            <label>Wilayah:</label>
+          <div style={filterGroupStyle}>
+            <label style={labelStyle}>Wilayah:</label>
             <select
               value={filterWilayah}
               onChange={(e) => setFilterWilayah(e.target.value)}
@@ -210,8 +303,8 @@ const Reports = () => {
               ))}
             </select>
           </div>
-          <div>
-            <label>Bulan:</label>
+          <div style={filterGroupStyle}>
+            <label style={labelStyle}>Bulan:</label>
             <select value={filterBulan} onChange={(e) => setFilterBulan(e.target.value ? Number(e.target.value) : "")} style={inputStyle}>
               <option value="">Semua Bulan</option>
               {Array.from({ length: 12 }, (_, i) => (
@@ -221,8 +314,8 @@ const Reports = () => {
               ))}
             </select>
           </div>
-          <div>
-            <label>Tahun:</label>
+          <div style={filterGroupStyle}>
+            <label style={labelStyle}>Tahun:</label>
             <select
               value={filterTahun}
               onChange={(e) => setFilterTahun(e.target.value ? Number(e.target.value) : "")}
@@ -234,31 +327,19 @@ const Reports = () => {
               ))}
             </select>
           </div>
-          <div>
-            <label>Status Pembayaran:</label>
+          <div style={filterGroupStyle}>
+            <label style={labelStyle}>Status Pembayaran:</label>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as "lunas" | "belum" | "")} style={inputStyle}>
               <option value="">Semua Status</option>
               <option value="lunas">Lunas</option>
               <option value="belum">Belum</option>
             </select>
           </div>
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button 
-            onClick={exportToExcel} 
-            style={{ 
-              padding: "10px 20px", 
-              backgroundColor: "#1e3a8a", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "5px", 
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "600"
-            }}
-          >
-            Export Laporan ke Excel
-          </button>
+          <div style={{ marginLeft: "auto" }}>
+             <button onClick={exportToExcel} style={buttonStyle}>
+                Export ke Excel
+             </button>
+          </div>
         </div>
       </div>
 
