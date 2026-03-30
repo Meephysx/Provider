@@ -7,11 +7,11 @@ interface CustomerTableProps {
   payments: Payment[];
   currentMonth: number;
   currentYear: number;
-  onDelete?: (customer: Customer) => void; // Tambahkan ? agar opsional
+  onDelete?: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
-  onMarkPaid?: () => Promise<void>; // Tambahkan ini untuk Dashboard
-  onSendWa?: (customer: Customer) => void; // Tambahkan ini untuk fitur WhatsApp
-  onStatusToggle?: () => void; // Tetap simpan ini jika digunakan
+  onMarkPaid?: () => Promise<void>;
+  onSendWa?: (customer: Customer) => void;
+  onStatusToggle?: () => void;
 }
 
 const CustomerTable: React.FC<CustomerTableProps> = ({
@@ -53,11 +53,12 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 
       // Call back to parent components to refresh data if provided.
       if (typeof onMarkPaid === "function") await onMarkPaid();
-      if (typeof onStatusToggle === "function") onStatusToggle();
+      if (typeof onStatusToggle === "function") await onStatusToggle();
     } catch (err) {
       console.error("Error toggling status", err);
     }
   };
+
   const handleWhatsApp = (customer: Customer) => {
     if (typeof onSendWa === "function") {
       onSendWa(customer);
@@ -69,7 +70,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
       return;
     }
 
-    const message = `Halo ${customer.nama}, kami dari admin WiFi ingin mengingatkan bahwa pembayaran internet bulan ini sebesar Rp${(customer.harga || 0).toLocaleString()}. Terima kasih.`;
+    const message = `Halo ${customer.nama}, kami dari admin MAJUIN ingin mengingatkan bahwa tagihan internet bulan ini sebesar Rp${(customer.harga || 0).toLocaleString()} sudah bisa dibayarkan. Terima kasih.`;
     const url = `https://wa.me/${customer.no_hp}?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -82,6 +83,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
             <th style={styles.th}>No</th>
             <th style={styles.th}>Nama</th>
             <th style={styles.th}>Wilayah</th>
+            <th style={styles.th}>Sektor</th>
             <th style={styles.th}>Paket</th>
             <th style={styles.th}>Harga</th>
             <th style={styles.th}>Status</th>
@@ -101,6 +103,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   {customer.nama}
                 </td>
                 <td style={styles.td}>{customer.wilayah}</td>
+                <td style={styles.td}>{customer.sektor?.trim() || "-"}</td>
                 <td style={styles.td}>{customer.paket}</td>
                 <td style={{ ...styles.td, fontWeight: "600" }}>
                   Rp {(customer.harga || 0).toLocaleString()}
@@ -117,24 +120,28 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                   </span>
                 </td>
                 <td style={styles.td}>
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     {onEdit && (
                       <button
                         onClick={() => onEdit(customer)}
                         style={styles.btnEdit}
+                        title="Edit Data Pelanggan"
                       >
                         Edit
                       </button>
                     )}
+                    {/* Mengubah style button ini agar berbeda dari WhatsApp */}
                     <button
                       onClick={() => toggleStatus(customer)}
-                      style={styles.btnWhatsApp}
+                      style={styles.btnToggleBayar}
+                      title="Ubah Status Pembayaran (Lunas/Belum)"
                     >
                       Toggle Bayar
                     </button>
                     <button
                       onClick={() => handleWhatsApp(customer)}
                       style={styles.btnWhatsApp}
+                      title="Kirim Pesan WhatsApp"
                     >
                       WhatsApp
                     </button>
@@ -142,6 +149,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
                       <button
                         onClick={() => onDelete(customer)}
                         style={styles.btnDelete}
+                        title="Hapus Pelanggan"
                       >
                         Hapus
                       </button>
@@ -158,7 +166,7 @@ const CustomerTable: React.FC<CustomerTableProps> = ({
 };
 
 const styles: { [key: string]: any } = {
-  table: { width: "100%", borderCollapse: "collapse", backgroundColor: "#fff" },
+  table: { width: "100%", borderCollapse: "collapse", backgroundColor: "#fff", minWidth: "900px" },
   th: {
     textAlign: "left",
     padding: "16px",
@@ -207,35 +215,50 @@ const styles: { [key: string]: any } = {
     backgroundColor: "#fef3c7",
     color: "#92400e",
   },
-  btnWhatsApp: {
-    padding: "4px 8px",
-    backgroundColor: "#25d366",
+  // Style baru untuk tombol Bayar (Warna Biru Indigo)
+  btnToggleBayar: {
+    padding: "6px 10px",
+    backgroundColor: "#4f46e5", // Indigo color
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontSize: "12px",
     fontWeight: "600",
+    transition: "background 0.2s",
+  },
+  btnWhatsApp: {
+    padding: "6px 10px",
+    backgroundColor: "#25d366", // WhatsApp Green
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "600",
+    transition: "background 0.2s",
   },
   btnEdit: {
-    padding: "4px 8px",
-    backgroundColor: "#f97316",
+    padding: "6px 10px",
+    backgroundColor: "#f97316", // Orange
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontSize: "12px",
     fontWeight: "600",
+    transition: "background 0.2s",
   },
   btnDelete: {
-    padding: "4px 8px",
-    backgroundColor: "#ef4444",
+    padding: "6px 10px",
+    backgroundColor: "#ef4444", // Red
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
     fontSize: "12px",
     fontWeight: "600",
+    transition: "background 0.2s",
   },
 };
 

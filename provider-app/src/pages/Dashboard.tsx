@@ -46,6 +46,7 @@ const Dashboard = () => {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const [filterWilayah, setFilterWilayah] = useState<string>("");
+  const [filterSektor, setFilterSektor] = useState<string>("");
   const [filterBulan, setFilterBulan] = useState<number>(currentMonth);
   const [filterTahun, setFilterTahun] = useState<number>(currentYear);
   const [searchNama, setSearchNama] = useState<string>("");
@@ -81,8 +82,9 @@ const Dashboard = () => {
   // 1. Filter Pelanggan berdasarkan Wilayah dan Nama
   const filteredCustomers = customers.filter((c) => {
     const matchWilayah = !filterWilayah || c.wilayah === filterWilayah;
+    const matchSektor = !filterSektor || c.sektor === filterSektor;
     const matchNama = !searchNama || c.nama.toLowerCase().includes(searchNama.toLowerCase());
-    return matchWilayah && matchNama;
+    return matchWilayah && matchSektor && matchNama;
   });
 
   const validCustomerIds = new Set(filteredCustomers.map((c) => c.id));
@@ -229,6 +231,15 @@ const Dashboard = () => {
                     <select style={styles.input} value={filterWilayah} onChange={(e) => setFilterWilayah(e.target.value)}>
                       <option value="">Semua Wilayah</option>
                       {Array.from(new Set(customers.map(c => c.wilayah))).map(w => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Filter Sektor */}
+                  <div style={styles.filterGroup}>
+                    <label style={styles.filterLabel}>Sektor</label>
+                    <select style={styles.input} value={filterSektor} onChange={(e) => setFilterSektor(e.target.value)}>
+                      <option value="">Semua Sektor</option>
+                      {Array.from(new Set(customers.map(c => c.sektor).filter(Boolean))).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
 

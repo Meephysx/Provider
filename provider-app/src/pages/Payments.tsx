@@ -16,14 +16,15 @@ const Payments = () => {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedStatus, setSelectedStatus] = useState<"lunas" | "belum">("belum");
   const [metodePembayaran, setMetodePembayaran] = useState<"Tunai" | "Transfer" | "QRIS">("Tunai");
-  const [bank, setBank] = useState<string>("");
+  const [bankPengirim, setBankPengirim] = useState<string>("");
+  const [bankPenerima, setBankPenerima] = useState<string>("");
   const [atasNamaRekening, setAtasNamaRekening] = useState<string>("");
   const [totalBayar, setTotalBayar] = useState<number>(0);
   const [tanggalBayar, setTanggalBayar] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     const handler = () => loadData();
@@ -46,7 +47,8 @@ const Payments = () => {
           : ""
       );
       setMetodePembayaran(existingPayment.metode_pembayaran ?? "Tunai");
-      setBank(existingPayment.bank ?? "");
+      setBankPengirim(existingPayment.bank_pengirim ?? "");
+      setBankPenerima(existingPayment.bank_penerima ?? "");
       setTanggalBayar(
         existingPayment.tanggal_bayar
           ? new Date(existingPayment.tanggal_bayar).toISOString().split("T")[0]
@@ -56,7 +58,8 @@ const Payments = () => {
       setTotalBayar(customer?.harga ?? 0);
       setAtasNamaRekening("");
       setMetodePembayaran("Tunai");
-      setBank("");
+      setBankPengirim("");
+      setBankPenerima("");
       setTanggalBayar(new Date().toISOString().split("T")[0]);
     }
   }, [selectedCustomer, selectedMonth, selectedYear, customers, payments]);
@@ -87,8 +90,12 @@ const Payments = () => {
     try {
       // Validasi input agar tidak tersimpan data default
       if (metodePembayaran === "Transfer") {
-        if (!bank) {
-          alert("Pilih bank transfer terlebih dahulu.");
+        if (!bankPengirim) {
+          alert("Masukkan bank pengirim (bank pelanggan).");
+          return;
+        }
+        if (!bankPenerima) {
+          alert("Pilih bank penerima (bank admin).");
           return;
         }
         if (!atasNamaRekening) {
@@ -112,7 +119,9 @@ const Payments = () => {
           ? existingPayment?.tanggal_bayar || new Date()
           : null,
         metode_pembayaran: metodePembayaran,
-        bank: metodePembayaran === "Transfer" ? bank : "",
+        bank: metodePembayaran === "Transfer" ? `${bankPengirim} -> ${bankPenerima}` : "",
+        bank_pengirim: metodePembayaran === "Transfer" ? bankPengirim : "",
+        bank_penerima: metodePembayaran === "Transfer" ? bankPenerima : "",
         atas_nama_rekening: atasNamaRekening || "-",
         total_bayar: totalBayar,
       };
@@ -124,6 +133,7 @@ const Payments = () => {
       }
       alert("Status pembayaran berhasil diperbarui");
       loadData();
+      window.dispatchEvent(new Event('paymentsUpdated'));
     } catch (error) {
       console.error("Error updating payment:", error);
       alert("Gagal memperbarui status pembayaran");
@@ -158,7 +168,7 @@ const Payments = () => {
               <option value="">-- Pilih Pelanggan --</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
-                  {customer.nama} - {customer.wilayah}
+                  {customer.nama} {customer.sektor ? `(${customer.sektor})` : ""} - {customer.wilayah}
                 </option>
               ))}
             </select>
@@ -194,7 +204,15 @@ const Payments = () => {
 
           <div className="form-group">
             <label>Metode Pembayaran:</label>
-            <select value={metodePembayaran} onChange={(e) => { setMetodePembayaran(e.target.value as "Tunai" | "Transfer" | "QRIS"); if (e.target.value !== "Transfer") setBank(""); }}>
+            <select 
+              value={metodePembayaran} 
+              onChange={(e) => { 
+                setMetodePembayaran(e.target.value as "Tunai" | "Transfer" | "QRIS"); 
+                if (e.target.value !== "Transfer") {
+                  setBankPengirim("");
+                  setBankPenerima("");
+                }
+              }}>
               <option value="Tunai">Tunai</option>
               <option value="Transfer">Transfer</option>
               <option value="QRIS">QRIS</option>
@@ -202,16 +220,26 @@ const Payments = () => {
           </div>
 
           {metodePembayaran === "Transfer" && (
-            <div className="form-group">
-              <label>Bank:</label>
-              <select value={bank} onChange={(e) => setBank(e.target.value)}>
-                <option value="">-- Pilih Bank --</option>
-                <option value="BCA">BCA</option>
-                <option value="BRI">BRI</option>
-                <option value="BNI">BNI</option>
-                <option value="Mandiri">Mandiri</option>
-              </select>
-            </div>
+            <>
+              <div className="form-group">
+                <label>Bank Pengirim (Pelanggan):</label>
+                <input
+                  type="text"
+                  value={bankPengirim}
+                  onChange={(e) => setBankPengirim(e.target.value)}
+                  placeholder="Contoh: BCA / BRI / Dana"
+                />
+              </div>
+              <div className="form-group">
+                <label>Bank Penerima (Admin):</label>
+                <input
+                  type="text"
+                  value={bankPenerima}
+                  onChange={(e) => setBankPenerima(e.target.value)}
+                  placeholder="Contoh: BCA Aldi / BRI"
+                />
+              </div>
+            </>
           )}
 
           <div className="form-group">
@@ -264,11 +292,12 @@ const Payments = () => {
                   <th>NO</th>
                   <th>Nama</th>
                   <th>Wilayah</th>
+                  <th>Sektor</th>
                   <th>Bulan</th>
                   <th>Tahun</th>
                   <th>Status</th>
                   <th>Metode</th>
-                  <th>Bank</th>
+                  <th>Alur Transfer</th>
                   <th>Atas Nama</th>
                   <th>Total Bayar</th>
                   <th>Tanggal Bayar</th>
@@ -282,6 +311,7 @@ const Payments = () => {
                       <td>{index + 1}</td>
                       <td>{customer?.nama || "-"}</td>
                       <td>{customer?.wilayah || "-"}</td>
+                      <td>{customer?.sektor || "-"}</td>
                       <td>{payment.bulan}</td>
                       <td>{payment.tahun}</td>
                       <td>
@@ -290,7 +320,7 @@ const Payments = () => {
                         </span>
                       </td>
                       <td>{payment.metode_pembayaran || "-"}</td>
-                      <td>{payment.bank || "-"}</td>
+                      <td>{payment.bank_pengirim && payment.bank_penerima ? `${payment.bank_pengirim} ➔ ${payment.bank_penerima}` : "-"}</td>
                       <td>{payment.atas_nama_rekening || "-"}</td>
                       <td>{payment.total_bayar ?? customer?.harga ?? "-"}</td>
                       <td>{payment.tanggal_bayar ? new Date(payment.tanggal_bayar).toLocaleDateString("id-ID") : "-"}</td>
