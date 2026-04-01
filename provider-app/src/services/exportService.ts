@@ -11,7 +11,7 @@ const formatDataForExport = (data: Array<Payment & { customer?: Customer }>) => 
     Nama: item.customer?.nama || "",
     Wilayah: item.customer?.wilayah || "",
     Paket: item.customer?.paket || "",
-    Harga: item.customer?.harga || 0,
+    Harga: typeof item.total_bayar === "number" ? item.total_bayar : (item.customer?.harga || 0),
     Bulan: item.bulan,
     Tahun: item.tahun,
     "Status Pembayaran": item.status_bayar === "lunas" ? "Lunas" : "Belum",

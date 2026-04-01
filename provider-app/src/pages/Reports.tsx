@@ -20,9 +20,35 @@ const Reports = () => {
   const [filterTahun, setFilterTahun] = useState<number | "">("");
   const [filterStatus, setFilterStatus] = useState<"lunas" | "belum" | "">("");
 
-  // dropdown options
-  const wilayahList = Array.from(new Set(customers.map(c => c.wilayah))).filter(w => w);
-  const sektorList = Array.from(new Set(customers.map(c => c.sektor))).filter(s => s);
+  // Helper function to capitalize each word
+  const capitalizeWords = (str: string): string => {
+    return str
+      .trim()
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // dropdown options - cleaned and formatted
+  const wilayahList = Array.from(
+    new Set(
+      customers
+        .map(c => c.wilayah)
+        .filter(w => w && w.trim())
+        .map(w => capitalizeWords(w))
+    )
+  ).sort();
+
+  const sektorList = Array.from(
+    new Set(
+      customers
+        .map(c => c.sektor)
+        .filter(s => s && s.trim())
+        .map(s => capitalizeWords(s))
+    )
+  ).sort();
+
   const yearOptions = Array.from(new Set(payments.map(p => Number(p.tahun)))).sort();
 
   useEffect(() => {
@@ -59,13 +85,21 @@ const Reports = () => {
     });
 
     if (filterNama) {
-      data = data.filter((item) => item.customer.nama.toLowerCase().includes(filterNama.toLowerCase()));
+      data = data.filter((item) => 
+        item.customer.nama.toLowerCase().trim().includes(filterNama.toLowerCase().trim())
+      );
     }
     if (filterWilayah) {
-      data = data.filter((item) => item.customer.wilayah.toLowerCase().includes(filterWilayah.toLowerCase()));
+      data = data.filter((item) => 
+        item.customer.wilayah && 
+        capitalizeWords(item.customer.wilayah).toLowerCase().includes(filterWilayah.toLowerCase().trim())
+      );
     }
     if (filterSektor) {
-      data = data.filter((item) => item.customer.sektor === filterSektor);
+      data = data.filter((item) => 
+        item.customer.sektor && 
+        capitalizeWords(item.customer.sektor).toLowerCase().includes(filterSektor.toLowerCase().trim())
+      );
     }
     if (filterStatus) {
       if (filterStatus === "lunas") {

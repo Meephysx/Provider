@@ -12,7 +12,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { Payment, PaymentWithCustomer, Customer } from "../types/Customer";
+import { Payment, PaymentWithCustomer } from "../types/Customer";
 import { getCustomers } from "./customerService";
 
 const COLLECTION_NAME = "payments";
@@ -241,6 +241,27 @@ export const deletePayment = async (id: string) => {
     return result;
   } catch (error) {
     console.error("Error deleting payment:", error);
+    throw error;
+  }
+};
+
+/**
+ * Hapus semua payments berdasarkan customer_id
+ */
+export const deletePaymentsByCustomerId = async (customerId: string) => {
+  try {
+    const q = query(collection(db, COLLECTION_NAME), where("customer_id", "==", customerId));
+    const querySnapshot = await getDocs(q);
+    const deletePromises = querySnapshot.docs.map((doc) => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    const result = {
+      success: true,
+      message: `Payments untuk customer ${customerId} berhasil dihapus`,
+    };
+    window.dispatchEvent(new Event("paymentsUpdated"));
+    return result;
+  } catch (error) {
+    console.error("Error deleting payments by customer ID:", error);
     throw error;
   }
 };

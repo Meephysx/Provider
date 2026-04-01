@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { Customer, Payment } from "../types/Customer";
-import { getCustomers, deleteCustomer, subscribeToCustomers } from "../services/customerService";
-import { getPayments, subscribeToPayments } from "../services/paymentService";
+import { deleteCustomer, subscribeToCustomers } from "../services/customerService";
+import { subscribeToPayments, deletePaymentsByCustomerId } from "../services/paymentService";
 import CustomerForm from "../components/CustomerForm";
 import CustomerTable from "../components/CustomerTable";
 import PaymentForm from "../components/PaymentForm";
@@ -13,7 +13,6 @@ const Customers = () => {
   const location = useLocation();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(false);
   
   // State untuk form
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -83,9 +82,12 @@ const Customers = () => {
   };
 
   const handleDeleteCustomer = async (customer: Customer) => {
-    if (!confirm("Yakin ingin menghapus customer ini?")) return;
+    if (!confirm("Yakin ingin menghapus customer ini? Semua data pembayaran terkait juga akan dihapus.")) return;
     
     try {
+      // Hapus payments terkait terlebih dahulu
+      await deletePaymentsByCustomerId(customer.id!);
+      // Kemudian hapus customer
       await deleteCustomer(customer.id!);
       setCustomers(customers.filter(c => c.id !== customer.id));
     } catch (error) {
@@ -246,19 +248,15 @@ const Customers = () => {
         </div>
 
         {/* Customer Table */}
-        {loading ? (
-          <p>Loading...</p>
-        ) : (
-          <CustomerTable
-            customers={filteredCustomers}
-            payments={payments}
-            currentMonth={currentMonth}
-            currentYear={filterTahun}
-            onDelete={handleDeleteCustomer}
-            onEdit={handleEditCustomer}
-            onStatusToggle={() => {}}
-          />
-        )}
+        <CustomerTable
+          customers={filteredCustomers}
+          payments={payments}
+          currentMonth={currentMonth}
+          currentYear={filterTahun}
+          onDelete={handleDeleteCustomer}
+          onEdit={handleEditCustomer}
+          onStatusToggle={() => {}}
+        />
       </div>
     </div>
   );
